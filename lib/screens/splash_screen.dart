@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:video_player/video_player.dart';
+import 'package:firebase_auth/firebase_auth.dart'; // Import Firebase Auth
 import 'package:defensa_del_muro/screens/home_screen.dart';
+import 'package:defensa_del_muro/screens/auth_screen.dart'; // Import AuthScreen
 import 'package:defensa_del_muro/components/loading_bar.dart';
 
 class SplashScreen extends StatefulWidget {
@@ -22,19 +24,33 @@ class _SplashScreenState extends State<SplashScreen> {
     }
 
     if (_controller.value.position >= _controller.value.duration) {
-      // It's important to check if the widget is still mounted before navigating.
       if (mounted) {
-        Navigator.of(context).pushReplacement(
-          PageRouteBuilder(
-            pageBuilder: (context, animation, secondaryAnimation) => const HomeScreen(),
-            transitionsBuilder: (context, animation, secondaryAnimation, child) {
-              return FadeTransition(
-                opacity: animation,
-                child: child,
+        // Check if user is logged in
+        FirebaseAuth.instance.authStateChanges().listen((User? user) {
+          if (mounted) {
+            if (user == null) {
+              // No user is signed in, go to AuthScreen
+              Navigator.of(context).pushReplacement(
+                PageRouteBuilder(
+                  pageBuilder: (context, animation, secondaryAnimation) => const AuthScreen(),
+                  transitionsBuilder: (context, animation, secondaryAnimation, child) {
+                    return FadeTransition(opacity: animation, child: child);
+                  },
+                ),
               );
-            },
-          ),
-        );
+            } else {
+              // User is signed in, go to HomeScreen
+              Navigator.of(context).pushReplacement(
+                PageRouteBuilder(
+                  pageBuilder: (context, animation, secondaryAnimation) => const HomeScreen(),
+                  transitionsBuilder: (context, animation, secondaryAnimation, child) {
+                    return FadeTransition(opacity: animation, child: child);
+                  },
+                ),
+              );
+            }
+          }
+        });
       }
     }
   }

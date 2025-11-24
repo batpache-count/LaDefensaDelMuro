@@ -2,12 +2,11 @@ import 'package:flame/components.dart';
 import 'package:flutter/material.dart';
 import '../screens/game/my_game.dart';
 
-class BoilingOilComponent extends PositionComponent {
-  final MyGame game;
+class BoilingOilComponent extends PositionComponent with HasGameRef<MyGame> {
   final double damage;
   bool _cleanupDone = false; // 🔒 evita múltiples limpiezas
 
-  BoilingOilComponent({required this.game, this.damage = 5});
+  BoilingOilComponent({this.damage = 5});
 
   late final List<double> ropePositionsX;
 
@@ -23,10 +22,10 @@ class BoilingOilComponent extends PositionComponent {
     ];
 
     // ⏸️ Pausar spawn temporalmente
-    game.pauseSpawning();
+    gameRef.pauseSpawning();
 
-    final wallY = game.size.y * 0.40; // Changed from gameRef.size.y
-    final canvasWidth = game.size.x;
+    final wallY = gameRef.size.y * 0.42;
+    final canvasWidth = gameRef.size.x;
 
     // 🟩 Crear 4 calderos verdes bien distribuidos
     final int calderoCount = 4;
@@ -60,19 +59,19 @@ class BoilingOilComponent extends PositionComponent {
   }
 
   void _spawnOilFrom(RectangleComponent caldero) {
-    final wallY = game.size.y * 0.40; // Changed from gameRef.size.y
-    final oilHeight = game.size.y - wallY;
+    final wallY = gameRef.size.y * 0.40;
+    final oilHeight = gameRef.size.y - wallY;
 
     final oil = RectangleComponent(
       position: Vector2(caldero.position.x, wallY),
-      size: Vector2(game.size.x / 3.5, oilHeight),
+      size: Vector2(gameRef.size.x / 3.5, oilHeight),
       anchor: Anchor.topCenter,
-      paint: Paint()..color = Colors.orangeAccent.withAlpha((255 * 0.9).round()),
+      paint: Paint()..color = Colors.orangeAccent.withOpacity(0.9),
     );
     add(oil);
 
     // DAÑO: cada caldero aplica su propio daño
-    for (final goblin in game.children.whereType<GoblinComponent>()) {
+    for (final goblin in gameRef.children.whereType<GoblinComponent>()) {
       final goblinLeft = goblin.position.x;
       final goblinRight = goblin.position.x + goblin.size.x;
       final oilLeft = oil.position.x - oil.size.x / 2;
@@ -84,12 +83,12 @@ class BoilingOilComponent extends PositionComponent {
 
         if (goblin.health <= 0) {
           goblin.removeFromParent();
-          game.scoreNotifier.value += 10;
+          gameRef.scoreNotifier.value += 10;
 
           if (goblin is MiniBossComponent) {
-            game.onMiniBossKilledByOil();
+            gameRef.onMiniBossKilledByOil();
           } else {
-            game.onGoblinKilledByOil();
+            gameRef.onGoblinKilledByOil();
           }
         }
       }
@@ -112,6 +111,6 @@ class BoilingOilComponent extends PositionComponent {
     removeFromParent();
 
     // ▶️ Reanudar spawn
-    game.resumeSpawning();
+    gameRef.resumeSpawning();
   }
 }

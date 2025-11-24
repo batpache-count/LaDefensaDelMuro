@@ -1,4 +1,5 @@
 import 'dart:math';
+import 'dart:ui' as ui; // 💡 Importación de dart:ui con alias 'ui'
 import 'package:flame/components.dart';
 import 'package:flame/collisions.dart';
 import 'package:flame/events.dart';
@@ -11,7 +12,7 @@ enum DifficultyStage { easy, medium, hard }
 // =========================
 // GOBLIN
 // =========================
-class GoblinComponent extends RectangleComponent with CollisionCallbacks {
+class GoblinComponent extends SpriteAnimationComponent with CollisionCallbacks {
   final MyGame game;
   final Function() onBreach;
   final Function() onKilled;
@@ -24,22 +25,42 @@ class GoblinComponent extends RectangleComponent with CollisionCallbacks {
     required this.game,
     required this.onBreach,
     required this.onKilled,
-    required Vector2 position,
+    required super.position,
     required this.speed,
     this.maxHealth = 1,
-    Paint? paint,
-    Vector2? size,
   }) : health = maxHealth,
-       super(
-         position: position,
-         size: size ?? Vector2(30, 30),
-         paint: paint ?? (Paint()..color = Colors.red),
-       );
+       super(size: Vector2(50, 50), anchor: Anchor.center);
 
   @override
   Future<void> onLoad() async {
     await super.onLoad();
-    add(RectangleHitbox());
+
+    // 1. Cargar la imagen del spritesheet (ui.Image)
+    final image = game.goblinImage;
+
+    // Dimensiones de un solo frame (330x290)
+    final frameSize = Vector2(330, 290);
+
+    // 2. Definir y cargar los Sprites individuales (los recortes)
+    final List<Sprite> sprites = [
+      // Frame 1: Posición (0, 0)
+      Sprite(image, srcPosition: Vector2(0, 0), srcSize: frameSize),
+      // Frame 2: Posición (0, 290) - Recorte vertical
+      Sprite(
+        image,
+        srcPosition: Vector2(0, 290), // Mueve 290 píxeles hacia abajo
+        srcSize: frameSize,
+      ),
+    ];
+
+    // 3. Crear la animación
+    animation = SpriteAnimation.spriteList(
+      sprites,
+      stepTime: 0.15, // Velocidad de la animación
+    );
+
+    // Colisiones
+    add(RectangleHitbox(size: size * 0.8));
   }
 
   @override
@@ -47,7 +68,7 @@ class GoblinComponent extends RectangleComponent with CollisionCallbacks {
     super.update(dt);
     position.y -= speed * dt;
 
-    final criticalY = game.size.y * 0.40;
+    final criticalY = game.size.y * 0.45;
     if (position.y <= criticalY) {
       onBreach();
       removeFromParent();
@@ -67,6 +88,8 @@ class GoblinComponent extends RectangleComponent with CollisionCallbacks {
 // MINIBOSS
 // =========================
 class MiniBossComponent extends GoblinComponent {
+  Paint? _hitFlashPaint;
+
   MiniBossComponent({
     required super.game,
     required super.onBreach,
@@ -74,15 +97,54 @@ class MiniBossComponent extends GoblinComponent {
     required super.position,
     required super.speed,
     super.maxHealth = 25,
-  }) : super(paint: Paint()..color = Colors.purple, size: Vector2(45, 45));
+  }) : super();
+
+  @override
+  Future<void> onLoad() async {
+    // 1. Cargar la nueva imagen del miniboss (ui.Image)
+    final image = game.miniBossImage;
+
+    // 2. Definir dimensiones de un solo frame (610x810)
+    final frameSize = Vector2(610, 810);
+
+    // 3. Definir y cargar los 4 Sprites del spritesheet vertical
+    final List<Sprite> sprites = [
+      Sprite(image, srcPosition: Vector2(0, 0), srcSize: frameSize),
+      Sprite(image, srcPosition: Vector2(0, 810), srcSize: frameSize),
+      Sprite(image, srcPosition: Vector2(0, 1620), srcSize: frameSize),
+      Sprite(image, srcPosition: Vector2(0, 2430), srcSize: frameSize),
+    ];
+
+    // 4. Crear la nueva animación
+    animation = SpriteAnimation.spriteList(
+      sprites,
+      stepTime: 0.15, // Velocidad de la animación
+    );
+
+    // 5. Ajustar tamaño
+    size = Vector2(160, 160);
+
+    // 6. Añadir el hitbox explícitamente
+    add(RectangleHitbox(size: size * 0.8));
+  }
+
+  @override
+  void render(Canvas canvas) {
+    paint = _hitFlashPaint ?? Paint();
+    super.render(canvas);
+  }
 
   @override
   void hit() {
     super.hit();
     if (health > 0) {
-      paint.color = Colors.purple.shade100;
+      _hitFlashPaint = Paint()
+        ..colorFilter = ColorFilter.mode(
+          Colors.red.shade100,
+          BlendMode.modulate,
+        );
       Future.delayed(const Duration(milliseconds: 120), () {
-        paint.color = Colors.purple;
+        _hitFlashPaint = null;
       });
     }
   }
@@ -91,32 +153,31 @@ class MiniBossComponent extends GoblinComponent {
 // =========================
 // GOBLIN SPAWNER
 // =========================
-class GoblinSpawner extends TimerComponent {
-  final MyGame game;
+class GoblinSpawner extends TimerComponent with HasGameRef<MyGame> {
   final Vector2 gameSize;
   final Function() onBreach;
   final Function() onGoblinKilled;
   final Function() onMiniBossKilled;
 
   DifficultyStage _currentStage = DifficultyStage.easy;
+  int _killsInStage = 0;
 
   static const int easyToMediumLimit = 10;
   static const int mediumToHardLimit = 15;
   static const int goblinsBeforeMiniBoss = 40;
 
   static const Map<DifficultyStage, Map<String, double>> difficultySettings = {
-    DifficultyStage.easy: {'spawn': 2.0, 'defender': 1.5, 'speed': 80.0},
-    DifficultyStage.medium: {'spawn': 1.5, 'defender': 1.0, 'speed': 100.0},
-    DifficultyStage.hard: {'spawn': 1.0, 'defender': 0.5, 'speed': 120.0},
+    DifficultyStage.easy: {'spawn': 1.5, 'defender': 1.5, 'speed': 80.0},
+    DifficultyStage.medium: {'spawn': 1.0, 'defender': 1.0, 'speed': 100.0},
+    DifficultyStage.hard: {'spawn': 0.75, 'defender': 0.5, 'speed': 120.0},
   };
 
   final Random _rnd = Random();
 
-  // Posiciones X de las cuerdas debajo de los calderos
   late final List<double> ropePositionsX;
 
   GoblinSpawner({
-    required this.game,
+    required MyGame game,
     required this.gameSize,
     required this.onBreach,
     required this.onGoblinKilled,
@@ -125,24 +186,21 @@ class GoblinSpawner extends TimerComponent {
          period: difficultySettings[DifficultyStage.easy]!['spawn']!,
          autoStart: true,
          repeat: true,
-       );
-
-  @override
-  Future<void> onLoad() async {
-    await super.onLoad();
-    // Inicializa el cooldown del defensor
+       ) {
     game.defenderCooldownNotifier.value =
         difficultySettings[_currentStage]!['defender']!;
-    // Rellenar posiciones de las cuerdas
     ropePositionsX = game._cauldrons
         .map((c) => c.position.x + c.size.x / 2)
         .toList();
   }
 
   void registerKill() {
-    final totalKills = game._goblinsKilledCount;
+    _killsInStage++;
+    onGoblinKilled();
 
-    if (game.children.whereType<MiniBossComponent>().isEmpty) {
+    final totalKills = gameRef._goblinsKilledCount;
+
+    if (gameRef.children.whereType<MiniBossComponent>().isEmpty) {
       if (_currentStage == DifficultyStage.easy &&
           totalKills >= easyToMediumLimit) {
         _changeDifficulty(DifficultyStage.medium);
@@ -162,12 +220,12 @@ class GoblinSpawner extends TimerComponent {
     timer.limit = settings['spawn']!;
     timer.start();
 
-    game.defenderCooldownNotifier.value = settings['defender']!;
+    gameRef.defenderCooldownNotifier.value = settings['defender']!;
 
-    game.add(
+    gameRef.add(
       TextComponent(
         text: '¡OLEADA ${newStage.toString().split('.').last.toUpperCase()}!',
-        position: game.size / 2,
+        position: gameRef.size / 2,
         anchor: Anchor.center,
         priority: 100,
         textRenderer: TextPaint(
@@ -176,7 +234,7 @@ class GoblinSpawner extends TimerComponent {
       ),
     );
     Future.delayed(const Duration(seconds: 2), () {
-      game.children
+      gameRef.children
           .whereType<TextComponent>()
           .lastOrNull
           ?.removeFromParent();
@@ -185,18 +243,18 @@ class GoblinSpawner extends TimerComponent {
 
   @override
   void onTick() {
-    final totalKills = game._goblinsKilledCount;
-    final hasMiniBoss = game.children
+    final totalKills = gameRef._goblinsKilledCount;
+    final hasMiniBoss = gameRef.children
         .whereType<MiniBossComponent>()
         .isNotEmpty;
 
     if (totalKills >= goblinsBeforeMiniBoss &&
         !hasMiniBoss &&
-        !game._miniBossKilled) {
+        !gameRef._miniBossKilled) {
       timer.stop();
-      game.add(
+      gameRef.add(
         MiniBossComponent(
-          game: game,
+          game: gameRef,
           onBreach: onBreach,
           onKilled: onMiniBossKilled,
           position: Vector2(gameSize.x / 2, gameSize.y),
@@ -208,62 +266,94 @@ class GoblinSpawner extends TimerComponent {
 
     if (hasMiniBoss) return;
 
-    final activeEnemies = game.children.whereType<GoblinComponent>().length;
+    final activeEnemies = gameRef.children.whereType<GoblinComponent>().length;
     if (activeEnemies >= 10) return;
 
-    // Spawn goblin en una de las cuerdas
     final startX = ropePositionsX[_rnd.nextInt(ropePositionsX.length)];
     final speed = difficultySettings[_currentStage]!['speed']!;
     final newGoblin = GoblinComponent(
-      game: game,
+      game: gameRef,
       onBreach: onBreach,
       onKilled: () => registerKill(),
-      position: Vector2(startX - 15, gameSize.y),
+      position: Vector2(startX - 2, gameSize.y),
       speed: speed,
     );
-    game.add(newGoblin);
+    gameRef.add(newGoblin);
   }
 }
 
 // =========================
-// DEFENDER COMPONENT
+// DEFENDER COMPONENT (Actualizado)
 // =========================
-class DefenderComponent extends PositionComponent {
-  late RectangleComponent _body;
+class DefenderComponent extends SpriteComponent with HasGameRef<MyGame> {
+  // Ahora el componente en sí es el sprite
   late RectangleComponent _cooldownBar;
 
-  final MyGame game;
+  final ui.Image leftImage;
+  final ui.Image rightImage;
 
-  DefenderComponent(this.game);
+  // Tamaño deseado para el defensor
+  static final Vector2 defenderSize = Vector2(60, 90);
+
+  // Posición del defensor (centro)
+  static const double defenderYPositionRatio = 0.37; // 70% desde arriba
+
+  DefenderComponent({
+    required MyGame game,
+    required this.leftImage,
+    required this.rightImage,
+  }) : super(
+         size: defenderSize,
+         position: Vector2(
+           game.size.x / 2,
+           game.size.y * defenderYPositionRatio,
+         ),
+         anchor: Anchor.center,
+       );
 
   @override
   Future<void> onLoad() async {
     await super.onLoad();
 
-    final defenderY = game.size.y * 0.45;
+    // Sprite por defecto (Mirando a la derecha)
+    sprite = Sprite(rightImage);
 
-    _body = RectangleComponent(
-      position: Vector2(game.size.x / 2 - 22, defenderY - 155),
-      size: Vector2(45, 45),
-      paint: Paint()..color = Colors.blueAccent,
-    );
-    add(_body);
-
+    // Posición del componente de cooldown bar (relativa al centro del defensor)
     _cooldownBar = RectangleComponent(
-      position: Vector2(_body.position.x, _body.position.y - 6),
-      size: Vector2(45, 4),
-      paint: Paint()..color = Colors.red,
+      position: Vector2(
+        -defenderSize.x / 2 + 30,
+        -defenderSize.y / 2 + 45,
+      ), // Arriba del sprite
+      size: Vector2(defenderSize.x, 4), // Ancho total del sprite, 4px de alto
+      paint: Paint()..color = Colors.red.shade900,
+      priority: 1, // Asegura que esté por encima del sprite
     );
     add(_cooldownBar);
 
     game.defenderCooldownNotifier.addListener(_updateCooldownBar);
   }
 
+  // Método para cambiar el sprite y la dirección
+  void setDirection(bool isLeft) {
+    sprite = Sprite(isLeft ? leftImage : rightImage);
+  }
+
   void _updateCooldownBar() {
-    final currentStage = game._spawner?._currentStage ?? DifficultyStage.easy;
+    final currentStage =
+        game.children.whereType<GoblinSpawner>().firstOrNull?._currentStage ??
+        DifficultyStage.easy;
     final maxCd = GoblinSpawner.difficultySettings[currentStage]!['defender']!;
+
+    // Si _lastShotTime es 0, progress es 1 (barra llena). Si es maxCd, progress es 0 (barra vacía)
     final progress = 1 - (game._lastShotTime / maxCd).clamp(0.0, 1.0);
-    _cooldownBar.size.x = 45 * progress;
+
+    // La barra de cooldown tiene el ancho total del defensor (defenderSize.x)
+    _cooldownBar.size.x = defenderSize.x * progress;
+
+    // Si está cargada, la ponemos verde. Si está descargándose, roja.
+    _cooldownBar.paint.color = progress >= 0.99
+        ? Colors.green
+        : Colors.red.shade900;
   }
 
   @override
@@ -279,6 +369,17 @@ class DefenderComponent extends PositionComponent {
 class MyGame extends FlameGame with TapCallbacks, HasCollisionDetection {
   final int level;
   MyGame({this.level = 1});
+
+  // USAR ui.Image para referirse al tipo correcto de Flame/dart:ui
+  late final ui.Image goblinImage;
+  late final ui.Image miniBossImage;
+
+  // 💡 Nuevas imágenes del defensor
+  late final ui.Image defenderLeftImage;
+  late final ui.Image defenderRightImage;
+
+  // Referencia al defensor para cambiar la dirección
+  DefenderComponent? _defender;
 
   // HUD
   final ValueNotifier<int> scoreNotifier = ValueNotifier<int>(0);
@@ -307,24 +408,55 @@ class MyGame extends FlameGame with TapCallbacks, HasCollisionDetection {
   Future<void> onLoad() async {
     await super.onLoad();
 
-    // Fondo / muro
+    // Pre-carga de imágenes de componentes
+    goblinImage = await images.load('GoblinBack.png');
+    miniBossImage = await images.load('MiniBoss_Lvl1.png');
+    defenderLeftImage = await images.load('Defensor-Izq.png'); // 💡 Nueva carga
+    defenderRightImage = await images.load(
+      'Defensor-Der.png',
+    ); // 💡 Nueva carga
+
+    // ===== FONDO (más atrás) =====
     add(
-      RectangleComponent(
-        size: size,
-        paint: Paint()..color = const Color(0xFF696969),
-      ),
+      SpriteComponent()
+        ..sprite = await loadSprite('Fondo_Nvl1.jpg')
+        ..size = size
+        ..position = Vector2(0, -100)
+        ..priority = -10,
     );
 
-    // Zona crítica
-    add(
-      RectangleComponent(
-        position: Vector2(0, size.y * 0.40),
-        size: Vector2(size.x, size.y * 0.05),
-        paint: Paint()..color = Colors.red.withAlpha((255 * 0.4).round()),
-      ),
+    // ===== MURO ANIMADO =====
+    final muroImage = await images.load('Muro_Nvl1.png');
+
+    final frameSize = Vector2(1050, 1600);
+
+    final List<Sprite> muroSprites = [
+      Sprite(muroImage, srcPosition: Vector2(0, 0), srcSize: frameSize),
+      Sprite(muroImage, srcPosition: Vector2(0, 1600), srcSize: frameSize),
+      Sprite(muroImage, srcPosition: Vector2(0, 3200), srcSize: frameSize),
+    ];
+
+    final muroAnimation = SpriteAnimation.spriteList(
+      muroSprites,
+      stepTime: 0.25,
     );
 
-    add(DefenderComponent(this));
+    add(
+      SpriteAnimationComponent()
+        ..animation = muroAnimation
+        ..size = Vector2(1050, 1600)
+        ..scale = Vector2.all(size.x / 1050)
+        ..position = Vector2(0, size.y - (1600 * (size.x / 1050)))
+        ..priority = -5,
+    );
+
+    // 💡 Añadir el nuevo DefenderComponent
+    _defender = DefenderComponent(
+      game: this,
+      leftImage: defenderLeftImage,
+      rightImage: defenderRightImage,
+    );
+    add(_defender!);
 
     // --- Calderos + cuerdas ---
     final caldY = size.y * 0.42;
@@ -339,7 +471,6 @@ class MyGame extends FlameGame with TapCallbacks, HasCollisionDetection {
       _cauldrons.add(cald);
       add(cald);
 
-      // Dibujo de cuerda (solo visual)
       final rope = RectangleComponent(
         position: Vector2(caldX + 12, caldY + 30),
         size: Vector2(6, size.y * 0.55),
@@ -363,7 +494,6 @@ class MyGame extends FlameGame with TapCallbacks, HasCollisionDetection {
   @override
   void update(double dt) {
     super.update(dt);
-
     if (_abilityCooldownTimer > 0) {
       _abilityCooldownTimer = (_abilityCooldownTimer - dt).clamp(
         0,
@@ -388,6 +518,12 @@ class MyGame extends FlameGame with TapCallbacks, HasCollisionDetection {
 
     final tapPosition = event.canvasPosition;
     final tapped = componentsAtPoint(tapPosition);
+
+    // 💡 Lógica para cambiar la dirección del defensor
+    final isLeftHalf = tapPosition.x < size.x / 2;
+    _defender?.setDirection(isLeftHalf);
+    // Nota: Si quieres que el defensor solo mire a la izquierda si tocas la cuerda 1 o 2,
+    // la lógica sería más compleja, pero para "mitad de pantalla" esta es la forma correcta.
 
     for (final c in tapped.whereType<GoblinComponent>()) {
       _handleAttack(c);
@@ -415,7 +551,7 @@ class MyGame extends FlameGame with TapCallbacks, HasCollisionDetection {
 
   void activateBoilingOil() {
     if (_abilityCooldownTimer > 0) return;
-    add(BoilingOilComponent(game: this, damage: 5));
+    add(BoilingOilComponent(damage: 5));
     _abilityCooldownTimer = 5;
     abilityCooldownNotifier.value = 5;
   }
@@ -439,11 +575,9 @@ class MyGame extends FlameGame with TapCallbacks, HasCollisionDetection {
     _spawner?.timer.start();
   }
 
-  // Llamadas desde BoilingOilComponent cuando goblin o miniboss mueren por aceite
   void onGoblinKilledByOil() {
     _goblinsKilledCount++;
     scoreNotifier.value += 10;
-    // Opcional: chequear victoria
     if (_goblinsKilledCount >= GoblinSpawner.goblinsBeforeMiniBoss &&
         _miniBossKilled) {
       endGame(true);
@@ -452,7 +586,7 @@ class MyGame extends FlameGame with TapCallbacks, HasCollisionDetection {
 
   void onMiniBossKilledByOil() {
     _miniBossKilled = true;
-    onGoblinKilledByOil(); // reanudar spawn si estaba pausado
+    onGoblinKilledByOil();
   }
 
   void endGame(bool victory) {
@@ -469,51 +603,144 @@ class MyGame extends FlameGame with TapCallbacks, HasCollisionDetection {
       child: SafeArea(
         child: Stack(
           children: [
+            // Contenido principal del HUD (Puntaje, Breaches, Habilidad)
             Positioned(
-              top: 12,
-              left: 12,
-              right: 12,
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  ValueListenableBuilder<int>(
-                    valueListenable: game.scoreNotifier,
-                    builder: (_, score, __) => Text(
-                      'SCORE: $score',
-                      style: const TextStyle(color: Colors.white),
+              top: 0,
+              left: 0,
+              right: 0,
+              child: Padding(
+                padding: const EdgeInsets.all(12.0),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Columna Izquierda: SCORE y BREACHES
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        ValueListenableBuilder<int>(
+                          valueListenable: game.scoreNotifier,
+                          builder: (_, score, __) => Text(
+                            'PUNTAJE: $score',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              shadows: [
+                                Shadow(color: Colors.black, blurRadius: 4),
+                              ],
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        ValueListenableBuilder<int>(
+                          valueListenable: game.breachesNotifier,
+                          builder: (_, breaches, __) => Text(
+                            'BREACHES: $breaches / ${MyGame.maxBreaches}',
+                            style: const TextStyle(
+                              color: Colors.redAccent,
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                              shadows: [
+                                Shadow(color: Colors.black, blurRadius: 4),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
-                  ),
-                  ValueListenableBuilder<int>(
-                    valueListenable: game.breachesNotifier,
-                    builder: (_, breaches, __) => Text(
-                      'BREACHES: $breaches / ${MyGame.maxBreaches}',
-                      style: const TextStyle(color: Colors.white),
+
+                    // Habilidad (Aceite Hirviendo) y Cooldown
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        const Text(
+                          'HABILIDAD',
+                          style: TextStyle(
+                            color: Colors.yellow,
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            shadows: [
+                              Shadow(color: Colors.black, blurRadius: 4),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        ValueListenableBuilder<double>(
+                          valueListenable: game.abilityCooldownNotifier,
+                          builder: (_, cooldown, __) {
+                            final isReady = cooldown <= 0;
+                            final text = isReady
+                                ? 'ACEITE HIRVIENDO (LISTO)'
+                                : 'ACEITE HIRVIENDO (CD: ${cooldown.toStringAsFixed(1)}s)';
+
+                            return Text(
+                              text,
+                              style: TextStyle(
+                                color: isReady
+                                    ? Colors.lightBlueAccent
+                                    : Colors.grey,
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                                shadows: [
+                                  Shadow(color: Colors.black, blurRadius: 4),
+                                ],
+                              ),
+                            );
+                          },
+                        ),
+                      ],
                     ),
-                  ),
-                ],
-              ),
-            ),
-            Positioned(
-              right: 16,
-              bottom: 16,
-              child: GestureDetector(
-                onTap: game.activateBoilingOil,
-                child: Container(
-                  width: 64,
-                  height: 64,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: Colors.orangeAccent,
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withAlpha((255 * 0.3).round()),
-                        blurRadius: 6,
-                        offset: const Offset(2, 2),
-                      ),
-                    ],
-                  ),
+                  ],
                 ),
               ),
+            ),
+
+            // 💡 Botón de Habilidad (POSICIONADO ABAJO A LA DERECHA)
+            ValueListenableBuilder<double>(
+              valueListenable: game.abilityCooldownNotifier,
+              builder: (_, cooldown, __) {
+                final isReady = cooldown <= 0;
+                final opacity = isReady ? 1.0 : 0.4;
+                final color = isReady ? Colors.orangeAccent : Colors.grey;
+
+                return Positioned(
+                  right: 16,
+                  bottom: 16,
+                  child: GestureDetector(
+                    onTap: isReady ? game.activateBoilingOil : null,
+                    child: Opacity(
+                      opacity: opacity,
+                      child: Container(
+                        width: 64,
+                        height: 64,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: color,
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.5),
+                              blurRadius: 8,
+                              offset: const Offset(4, 4),
+                            ),
+                          ],
+                          border: Border.all(color: Colors.white, width: 2),
+                        ),
+                        child: const Center(
+                          child: Text(
+                            'OIL',
+                            style: TextStyle(
+                              color: Colors.black,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 18,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                );
+              },
             ),
           ],
         ),

@@ -1,8 +1,11 @@
+import 'package:defensa_del_muro/game_state.dart';
+import 'package:defensa_del_muro/services/firebase_service.dart';
 import 'package:flutter/material.dart';
 import 'package:defensa_del_muro/screens/level_select_screen.dart';
 import 'package:defensa_del_muro/screens/settings_screen.dart';
 import 'dart:async';
 import 'dart:math';
+import 'package:provider/provider.dart';
 import 'package:video_player/video_player.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -17,6 +20,8 @@ class _HomeScreenState extends State<HomeScreen> {
 
   late VideoPlayerController _videoPlayerController;
   late Future<void> _initializeVideoPlayerFuture;
+
+  final FirebaseService _firebaseService = FirebaseService();
 
   static const List<String> _loadingMessages = [
     "Huyendo de los goblins… por ahora.",
@@ -44,6 +49,7 @@ class _HomeScreenState extends State<HomeScreen> {
   String _currentLoadingMessage = '';
   Timer? _timer;
   final Random _random = Random();
+  double _backgroundOffsetY = 0.0;
 
   @override
   void initState() {
@@ -66,7 +72,7 @@ class _HomeScreenState extends State<HomeScreen> {
     _updateLoadingMessage();
 
     // Cambiar mensaje cada minuto
-    _timer = Timer.periodic(const Duration(minutes: 1), (timer) {
+    _timer = Timer.periodic(const Duration(seconds: 20), (timer) {
       _updateLoadingMessage();
     });
   }
@@ -83,6 +89,31 @@ class _HomeScreenState extends State<HomeScreen> {
       _currentLoadingMessage =
           _loadingMessages[_random.nextInt(_loadingMessages.length)];
     });
+
+    print("Mensaje cambiado a: $_currentLoadingMessage");
+  }
+
+  Future<void> _signInWithGoogle(BuildContext context) async {
+    final gameState = Provider.of<GameState>(context, listen: false);
+    final user = await _firebaseService.signInWithGoogle(context);
+    if (user != null) {
+      gameState.setUser(user);
+      final playerData = await _firebaseService.getPlayerData(user.uid);
+      if (playerData != null && playerData.exists) {
+        gameState.fromJson(playerData.data() as Map<String, dynamic>);
+      } else {
+        // If no data, save initial state
+        await _firebaseService.savePlayerData(user.uid, gameState.toJson());
+      }
+      Navigator.pop(context); // Close drawer
+    }
+  }
+
+  Future<void> _signOut(BuildContext context) async {
+    final gameState = Provider.of<GameState>(context, listen: false);
+    await _firebaseService.signOut();
+    gameState.reset();
+    Navigator.pop(context); // Close drawer
   }
 
   @override
@@ -96,13 +127,26 @@ class _HomeScreenState extends State<HomeScreen> {
             future: _initializeVideoPlayerFuture,
             builder: (context, snapshot) {
               if (snapshot.connectionState == ConnectionState.done) {
-                return SizedBox.expand(
-                  child: FittedBox(
-                    fit: BoxFit.cover,
-                    child: SizedBox(
-                      width: _videoPlayerController.value.size.width,
-                      height: _videoPlayerController.value.size.height,
-                      child: VideoPlayer(_videoPlayerController),
+                return Positioned.fill(
+                  child: Transform.translate(
+                    offset: Offset(15, _backgroundOffsetY),
+                    child: SizedBox.expand(
+                      child: Center(
+                        child: SizedBox(
+                          width:
+                              MediaQuery.of(context).size.width *
+                              1.6, // ← lo hacemos más ancho
+                          height: MediaQuery.of(context).size.height,
+                          child: FittedBox(
+                            fit: BoxFit.cover,
+                            child: SizedBox(
+                              width: _videoPlayerController.value.size.width,
+                              height: _videoPlayerController.value.size.height,
+                              child: VideoPlayer(_videoPlayerController),
+                            ),
+                          ),
+                        ),
+                      ),
                     ),
                   ),
                 );
@@ -221,100 +265,94 @@ class _HomeScreenState extends State<HomeScreen> {
               fit: BoxFit.cover,
             ),
           ),
-          child: ListView(
-            padding: EdgeInsets.zero,
-            children: <Widget>[
-              Container(
-                height: 80,
-                padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                decoration: BoxDecoration(
-                  color: Colors.brown.shade900.withAlpha((255 * 0.7).round()),
-                ),
-                alignment: Alignment.centerLeft,
-                child: const Text(
-                  'Menú',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 28,
-                    fontFamily: 'Medieval',
-                    fontWeight: FontWeight.bold,
+          child: Consumer<GameState>(
+            builder: (context, gameState, child) {
+              return ListView(
+                padding: EdgeInsets.zero,
+                children: <Widget>[
+                  Container(
+                    height: 80,
+                    padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                    decoration: BoxDecoration(
+                      color: Colors.brown.shade900
+                          .withAlpha((255 * 0.7).round()),
+                    ),
+                    alignment: Alignment.centerLeft,
+                    child: const Text(
+                      'Menú',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 28,
+                        fontFamily: 'Medieval',
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
                   ),
-                ),
-              ),
-              ListTile(
-                leading: const Icon(Icons.login, color: Colors.white),
-                title: const Text(
-                  'Iniciar sesión',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontFamily: 'Medieval',
-                    fontSize: 20,
-                  ),
-                ),
-                onTap: () {
-                  Navigator.pop(context);
-                  showDialog(
-                    context: context,
-                    builder: (BuildContext context) {
-                      return AlertDialog(
-                        title: const Text('Inicio de sesión'),
-                        content: SingleChildScrollView(
-                          child: ListBody(
-                            children: <Widget>[
-                              const TextField(
-                                decoration: InputDecoration(
-                                  labelText: 'Correo electrónico',
-                                ),
-                              ),
-                              const SizedBox(height: 10),
-                              const TextField(
-                                obscureText: true,
-                                decoration: InputDecoration(
-                                  labelText: 'Contraseña',
-                                ),
-                              ),
-                              const SizedBox(height: 20),
-                              ElevatedButton(
-                                onPressed: () {},
-                                child: const Text('Iniciar sesión con Google'),
-                              ),
-                            ],
-                          ),
+                  if (gameState.isLoggedIn) ...[
+                    ListTile(
+                      leading: CircleAvatar(
+                        backgroundImage: NetworkImage(
+                            gameState.userPhotoUrl ?? ''),
+                        radius: 20,
+                      ),
+                      title: Text(
+                        gameState.userEmail ?? 'Usuario',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontFamily: 'Medieval',
+                          fontSize: 16,
                         ),
-                        actions: <Widget>[
-                          TextButton(
-                            child: const Text('Cerrar'),
-                            onPressed: () {
-                              Navigator.of(context).pop();
-                            },
-                          ),
-                        ],
+                      ),
+                    ),
+                    ListTile(
+                      leading: const Icon(Icons.logout, color: Colors.white),
+                      title: const Text(
+                        'Cerrar sesión',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontFamily: 'Medieval',
+                          fontSize: 20,
+                        ),
+                      ),
+                      onTap: () => _signOut(context),
+                    ),
+                  ] else ...[
+                    ListTile(
+                      leading: const Icon(Icons.login, color: Colors.white),
+                      title: const Text(
+                        'Iniciar sesión',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontFamily: 'Medieval',
+                          fontSize: 20,
+                        ),
+                      ),
+                      onTap: () => _signInWithGoogle(context),
+                    ),
+                  ],
+                  ListTile(
+                    leading: const Icon(Icons.settings, color: Colors.white),
+                    title: const Text(
+                      'Ajustes',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontFamily: 'Medieval',
+                        fontSize: 20,
+                      ),
+                    ),
+                    onTap: () {
+                      Navigator.pop(context);
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const SettingsScreen(),
+                        ),
                       );
                     },
-                  );
-                },
-              ),
-              ListTile(
-                leading: const Icon(Icons.settings, color: Colors.white),
-                title: const Text(
-                  'Ajustes',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontFamily: 'Medieval',
-                    fontSize: 20,
                   ),
-                ),
-                onTap: () {
-                  Navigator.pop(context);
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const SettingsScreen(),
-                    ),
-                  );
-                },
-              ),
-            ],
+                ],
+              );
+            },
           ),
         ),
       ),

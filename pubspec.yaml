@@ -13,6 +13,11 @@ dependencies:
   cupertino_icons: ^1.0.8
   flame: ^1.33.0
   video_player: ^2.8.1
+  firebase_core: ^4.2.1
+  cloud_firestore: ^6.1.0
+  firebase_auth: ^6.1.2
+  provider: ^6.1.5+1
+  google_sign_in: 6.1.5
 
 dev_dependencies:
   flutter_test:
@@ -27,6 +32,8 @@ flutter:
     - assets/botones/
     - assets/fondos/fondo_carga.mp4
     - assets/fondos/fondo_home.mp4
+    - assets/images/
+    - assets/fondos/level_select_bg.png
 
   fonts:
     - family: Medieval

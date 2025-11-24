@@ -1,0 +1,39 @@
+{
+  "project_info": {
+    "project_number": "915303534228",
+    "project_id": "ladefensadelmuro",
+    "storage_bucket": "ladefensadelmuro.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:915303534228:android:853c457095c57ddc11ee81",
+        "android_client_info": {
+          "package_name": "com.example.defensa_del_muro"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "915303534228-dr768mhmenta6fhc8cumj8ub5tkuurpb.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyC-6sgGZ96X9BKnbDTshTCyhNt1IDELGaI"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "915303534228-dr768mhmenta6fhc8cumj8ub5tkuurpb.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
