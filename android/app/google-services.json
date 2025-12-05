@@ -14,6 +14,14 @@
       },
       "oauth_client": [
         {
+          "client_id": "915303534228-3qle2t9damfb52el4dbrdvbcggr6ejmv.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.defensa_del_muro",
+            "certificate_hash": "ca123c12b91c9c7bf5c59e515b09cb3fb24bcb53"
+          }
+        },
+        {
           "client_id": "915303534228-dr768mhmenta6fhc8cumj8ub5tkuurpb.apps.googleusercontent.com",
           "client_type": 3
         }

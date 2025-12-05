@@ -16,27 +16,110 @@ class _LevelSelectScreenState extends State<LevelSelectScreen> {
       context: context,
       barrierDismissible: false,
       builder: (BuildContext context) {
-        return AlertDialog(
-          title: const Text('¿Jugar Nivel?'),
-          content: Text('¿Estás seguro de que quieres jugar el nivel $level?'),
-          actions: <Widget>[
-            TextButton(
-              child: const Text('Regresar'),
-              onPressed: () {
-                Navigator.of(context).pop();
-              },
+        return Dialog(
+          backgroundColor: Colors.transparent,
+          child: Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: const Color(0xFF2C1B10), // Dark brown
+              borderRadius: BorderRadius.circular(15),
+              border: Border.all(
+                color: const Color(0xFFC9A348), // Gold
+                width: 3,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.8),
+                  blurRadius: 10,
+                  offset: const Offset(0, 5),
+                ),
+              ],
             ),
-            TextButton(
-              child: const Text('Jugar'),
-              onPressed: () {
-                Navigator.of(context).pop();
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => GameScreen(level: level)),
-                );
-              },
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'Nivel $level',
+                  style: const TextStyle(
+                    fontFamily: 'Medieval',
+                    fontSize: 32,
+                    color: Color(0xFFC9A348), // Gold
+                    fontWeight: FontWeight.bold,
+                    shadows: [
+                      Shadow(
+                        blurRadius: 2.0,
+                        color: Colors.black,
+                        offset: Offset(2.0, 2.0),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 15),
+                const Text(
+                  '¿Estás listo para la batalla?',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontFamily: 'Medieval',
+                    fontSize: 20,
+                    color: Colors.white,
+                  ),
+                ),
+                const SizedBox(height: 25),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    // Play Button
+                    TextButton(
+                      onPressed: () {
+                        Navigator.of(context).pop();
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (_) => GameScreen(level: level)),
+                        );
+                      },
+                      style: TextButton.styleFrom(
+                        backgroundColor: Colors.green[800],
+                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          side: const BorderSide(color: Colors.greenAccent),
+                        ),
+                      ),
+                      child: const Text(
+                        '¡Al Ataque!',
+                        style: TextStyle(
+                          fontFamily: 'Medieval',
+                          color: Colors.white,
+                          fontSize: 18,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 15),
+                    // Cancel Button
+                    TextButton(
+                      onPressed: () => Navigator.of(context).pop(),
+                      style: TextButton.styleFrom(
+                        backgroundColor: Colors.red[900],
+                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          side: const BorderSide(color: Colors.redAccent),
+                        ),
+                      ),
+                      child: const Text(
+                        'En otro momento',
+                        style: TextStyle(
+                          fontFamily: 'Medieval',
+                          color: Colors.white,
+                          fontSize: 18,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
             ),
-          ],
+          ),
         );
       },
     );
@@ -55,6 +138,7 @@ class _LevelSelectScreenState extends State<LevelSelectScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Colors.black,
       body: Consumer<GameState>(
         builder: (context, gameState, child) {
           final unlockedLevels = gameState.unlockedLevels;
@@ -115,58 +199,27 @@ class LevelButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Seleccionar imagen según el nivel
+    String imagePath;
+    switch (level) {
+      case 1:
+        imagePath = 'assets/botones/Boton_1.png';
+        break;
+      case 2:
+        imagePath = 'assets/botones/Boton_2.png';
+        break;
+      case 3:
+        imagePath = 'assets/botones/Boton_3.png';
+        break;
+      default:
+        imagePath = 'assets/botones/Boton_1.png';
+    }
+
     return GestureDetector(
       onTap: unlocked ? onTap : null,
-      child: Container(
-        width: 100,
-        height: 100,
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          image: DecorationImage(
-            image: AssetImage(
-              unlocked
-                  ? 'assets/botones/PlayButton.gif'
-                  : 'assets/botones/PlayButton.gif',
-            ),
-            fit: BoxFit.cover,
-            colorFilter: unlocked
-                ? null
-                : const ColorFilter.matrix(<double>[
-                    0.2126, 0.7152, 0.0722, 0, 0,
-                    0.2126, 0.7152, 0.0722, 0, 0,
-                    0.2126, 0.7152, 0.0722, 0, 0,
-                    0,      0,      0,      1, 0,
-                  ]),
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: unlocked
-                  ? Colors.amber.withOpacity(0.7)
-                  : Colors.black.withOpacity(0.5),
-              blurRadius: 10,
-              spreadRadius: 2,
-            ),
-          ],
-        ),
-        child: Center(
-          child: unlocked
-              ? Text(
-                  'Nivel $level',
-                  style: const TextStyle(
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
-                    shadows: [
-                      Shadow(
-                        blurRadius: 4,
-                        color: Colors.black,
-                        offset: Offset(2, 2),
-                      ),
-                    ],
-                  ),
-                )
-              : const Icon(Icons.lock, color: Colors.white, size: 40),
-        ),
+      child: Opacity(
+        opacity: unlocked ? 1.0 : 0.4, // Bloqueados se ven apagados
+        child: Image.asset(imagePath, width: 120, height: 120),
       ),
     );
   }

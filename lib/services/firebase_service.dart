@@ -9,7 +9,7 @@ class FirebaseService {
   final GoogleSignIn _googleSignIn = GoogleSignIn();
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
-  Future<User?> signInWithGoogle(BuildContext context) async {
+  Future<User?> signInWithGoogle() async {
     try {
       final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
       if (googleUser == null) {
@@ -19,22 +19,30 @@ class FirebaseService {
 
       final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
       final AuthCredential credential = GoogleAuthProvider.credential(
-        idToken: googleAuth.idToken, // Use only idToken, accessToken is null
-        accessToken: null, // Explicitly set to null as per documentation for optional accessToken
+        idToken: googleAuth.idToken,
+        accessToken: googleAuth.accessToken,
       );
 
       final UserCredential userCredential = await _auth.signInWithCredential(credential);
-      return userCredential.user;
+      final User? user = userCredential.user;
+
+      if (user != null) {
+        // Check if this is a new user
+        final userDoc = await _firestore.collection('players').doc(user.uid).get();
+        if (!userDoc.exists) {
+          // New user, create a document for them
+          await _firestore.collection('players').doc(user.uid).set({
+            'displayName': user.displayName,
+            'email': user.email,
+            'photoURL': user.photoURL,
+            'createdAt': FieldValue.serverTimestamp(),
+          });
+        }
+      }
+
+      return user;
     } catch (e) {
       debugPrint('Error during Google Sign-In: $e');
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Google Sign-In Error: ${e.toString()}'),
-            backgroundColor: Theme.of(context).colorScheme.error,
-          ),
-        );
-      }
       return null;
     }
   }

@@ -1,12 +1,15 @@
-import 'package:defensa_del_muro/game_state.dart';
-import 'package:defensa_del_muro/services/firebase_service.dart';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import 'package:defensa_del_muro/game_state.dart';
 import 'package:defensa_del_muro/screens/level_select_screen.dart';
 import 'package:defensa_del_muro/screens/settings_screen.dart';
+import 'package:defensa_del_muro/services/firebase_service.dart';
 import 'dart:async';
 import 'dart:math';
-import 'package:provider/provider.dart';
 import 'package:video_player/video_player.dart';
+
+// Importamos la pantalla del Bestiario
+import 'bestiary/bestiary_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -16,12 +19,15 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  final GlobalKey<ScaffoldState> scaffoldKey = GlobalKey<ScaffoldState>();
+  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
 
   late VideoPlayerController _videoPlayerController;
   late Future<void> _initializeVideoPlayerFuture;
 
-  final FirebaseService _firebaseService = FirebaseService();
+  String _currentLoadingMessage = '';
+  Timer? _timer;
+  final Random _random = Random();
+  double _backgroundOffsetY = 0.0;
 
   static const List<String> _loadingMessages = [
     "Huyendo de los goblins… por ahora.",
@@ -46,32 +52,21 @@ class _HomeScreenState extends State<HomeScreen> {
     "Buscando runas antiguas…",
   ];
 
-  String _currentLoadingMessage = '';
-  Timer? _timer;
-  final Random _random = Random();
-  double _backgroundOffsetY = 0.0;
-
   @override
   void initState() {
     super.initState();
 
-    // Inicializar video
     _videoPlayerController = VideoPlayerController.asset(
       'assets/fondos/fondo_home.mp4',
     );
-    _initializeVideoPlayerFuture = _videoPlayerController.initialize().then((
-      _,
-    ) {
+    _initializeVideoPlayerFuture = _videoPlayerController.initialize().then((_) {
       _videoPlayerController.setLooping(true);
       _videoPlayerController.setVolume(0.0);
       _videoPlayerController.play();
-      setState(() {}); // fuerza rebuild
+      setState(() {});
     });
 
-    // Mensaje inicial
     _updateLoadingMessage();
-
-    // Cambiar mensaje cada minuto
     _timer = Timer.periodic(const Duration(seconds: 20), (timer) {
       _updateLoadingMessage();
     });
@@ -86,43 +81,16 @@ class _HomeScreenState extends State<HomeScreen> {
 
   void _updateLoadingMessage() {
     setState(() {
-      _currentLoadingMessage =
-          _loadingMessages[_random.nextInt(_loadingMessages.length)];
+      _currentLoadingMessage = _loadingMessages[_random.nextInt(_loadingMessages.length)];
     });
-
-    print("Mensaje cambiado a: $_currentLoadingMessage");
-  }
-
-  Future<void> _signInWithGoogle(BuildContext context) async {
-    final gameState = Provider.of<GameState>(context, listen: false);
-    final user = await _firebaseService.signInWithGoogle(context);
-    if (user != null) {
-      gameState.setUser(user);
-      final playerData = await _firebaseService.getPlayerData(user.uid);
-      if (playerData != null && playerData.exists) {
-        gameState.fromJson(playerData.data() as Map<String, dynamic>);
-      } else {
-        // If no data, save initial state
-        await _firebaseService.savePlayerData(user.uid, gameState.toJson());
-      }
-      Navigator.pop(context); // Close drawer
-    }
-  }
-
-  Future<void> _signOut(BuildContext context) async {
-    final gameState = Provider.of<GameState>(context, listen: false);
-    await _firebaseService.signOut();
-    gameState.reset();
-    Navigator.pop(context); // Close drawer
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      key: scaffoldKey,
+      key: _scaffoldKey,
       body: Stack(
         children: [
-          // Video de fondo
           FutureBuilder(
             future: _initializeVideoPlayerFuture,
             builder: (context, snapshot) {
@@ -133,9 +101,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     child: SizedBox.expand(
                       child: Center(
                         child: SizedBox(
-                          width:
-                              MediaQuery.of(context).size.width *
-                              1.6, // ← lo hacemos más ancho
+                          width: MediaQuery.of(context).size.width * 1.6,
                           height: MediaQuery.of(context).size.height,
                           child: FittedBox(
                             fit: BoxFit.cover,
@@ -155,108 +121,115 @@ class _HomeScreenState extends State<HomeScreen> {
               }
             },
           ),
-
-          // Contenido del Home
           Positioned.fill(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                Expanded(
-                  child: Center(
-                    child: Text(
-                      '', // Aquí puedes poner el título del juego si quieres
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontSize: 60,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                        fontFamily: 'Medieval',
-                        shadows: [
-                          Shadow(
-                            blurRadius: 10.0,
-                            color: Colors.black.withAlpha((255 * 0.8).round()),
-                            offset: const Offset(5.0, 5.0),
-                          ),
-                        ],
+            child: Center(
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    const SizedBox(height: 40),
+                    Center(
+                      child: Text(
+                        '', // Title can go here
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontSize: 60,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                          fontFamily: 'Medieval',
+                          shadows: [
+                            Shadow(
+                              blurRadius: 10.0,
+                              color: Colors.black.withAlpha((255 * 0.8).round()),
+                              offset: const Offset(5.0, 5.0),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
-                  ),
-                ),
-                // Botones del menú
-                _MenuButton(
-                  imagePath: 'assets/botones/PlayButton.gif',
-                  onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => const LevelSelectScreen(),
-                      ),
-                    );
-                  },
-                ),
-                const SizedBox(height: 20),
-                _MenuButton(
-                  imagePath: 'assets/botones/TiendaButton.gif',
-                  onPressed: () {},
-                ),
-                const SizedBox(height: 20),
-                _MenuButton(
-                  imagePath: 'assets/botones/BestiarioButton.gif',
-                  onPressed: () {},
-                ),
-                const SizedBox(height: 20),
-                _MenuButton(
-                  imagePath: 'assets/botones/ScoreboardButton.gif',
-                  onPressed: () {},
-                ),
-                const SizedBox(height: 40),
+                    const SizedBox(height: 20),
+                    // BOTÓN DE JUGAR
+                    _MenuButton(
+                      imagePath: 'assets/botones/PlayButton.gif',
+                      onPressed: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const LevelSelectScreen(),
+                          ),
+                        );
+                      },
+                    ),
+                    const SizedBox(height: 20),
+                    
+                    // BOTÓN DE TIENDA
+                    _MenuButton(
+                      imagePath: 'assets/botones/TiendaButton.gif',
+                      onPressed: () {},
+                    ),
+                    const SizedBox(height: 20),
+                    
+                    // --- BOTÓN DE BESTIARIO (YA CONECTADO) ---
+                    _MenuButton(
+                      imagePath: 'assets/botones/BestiarioButton.gif',
+                      onPressed: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (context) => const BestiaryScreen()),
+                        );
+                      },
+                    ),
+                    // -----------------------------------------
 
-                // Mensaje aleatorio
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 20.0),
-                  child: SizedBox(
-                    width: double.infinity,
-                    child: Text(
-                      _currentLoadingMessage,
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontSize: 22,
-                        color: Colors.white,
-                        fontFamily: 'Medieval',
-                        shadows: [
-                          Shadow(
-                            blurRadius: 8.0,
-                            color: Colors.black.withAlpha((255 * 0.9).round()),
-                            offset: const Offset(3.0, 3.0),
+                    const SizedBox(height: 20),
+                    
+                    // BOTÓN DE SCOREBOARD
+                    _MenuButton(
+                      imagePath: 'assets/botones/ScoreboardButton.gif',
+                      onPressed: () {},
+                    ),
+                    const SizedBox(height: 40),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 20.0),
+                      child: SizedBox(
+                        width: double.infinity,
+                        child: Text(
+                          _currentLoadingMessage,
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontSize: 22,
+                            color: Colors.white,
+                            fontFamily: 'Medieval',
+                            shadows: [
+                              Shadow(
+                                blurRadius: 8.0,
+                                color: Colors.black.withAlpha((255 * 0.9).round()),
+                                offset: const Offset(3.0, 3.0),
+                              ),
+                            ],
                           ),
-                        ],
+                        ),
                       ),
                     ),
-                  ),
+                    const SizedBox(height: 20),
+                  ],
                 ),
-                const Spacer(),
-              ],
+              ),
             ),
           ),
-
-          // Hamburger Menu
           Positioned(
             bottom: 16.0,
             right: 16.0,
             child: IconButton(
-              icon: Image.asset(
-                'assets/botones/New Piskel.png',
-                width: 40,
-                height: 40,
-              ),
+              icon: Image.asset('assets/botones/New Piskel.png', width: 40, height: 40),
               onPressed: () {
-                scaffoldKey.currentState?.openEndDrawer();
+                _scaffoldKey.currentState?.openEndDrawer();
               },
             ),
           ),
         ],
       ),
-      // Drawer de ajustes
       endDrawer: Drawer(
         child: Container(
           decoration: const BoxDecoration(
@@ -267,6 +240,7 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           child: Consumer<GameState>(
             builder: (context, gameState, child) {
+              print('HomeScreen endDrawer Consumer rebuilt. isLoggedIn: ${gameState.isLoggedIn}, userEmail: ${gameState.userEmail}');
               return ListView(
                 padding: EdgeInsets.zero,
                 children: <Widget>[
@@ -274,8 +248,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     height: 80,
                     padding: const EdgeInsets.symmetric(horizontal: 16.0),
                     decoration: BoxDecoration(
-                      color: Colors.brown.shade900
-                          .withAlpha((255 * 0.7).round()),
+                      color: Colors.brown[900]!.withAlpha((255 * 0.7).round()),
                     ),
                     alignment: Alignment.centerLeft,
                     child: const Text(
@@ -291,8 +264,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   if (gameState.isLoggedIn) ...[
                     ListTile(
                       leading: CircleAvatar(
-                        backgroundImage: NetworkImage(
-                            gameState.userPhotoUrl ?? ''),
+                        backgroundImage: NetworkImage(gameState.userPhotoUrl ?? ''),
                         radius: 20,
                       ),
                       title: Text(
@@ -314,21 +286,27 @@ class _HomeScreenState extends State<HomeScreen> {
                           fontSize: 20,
                         ),
                       ),
-                      onTap: () => _signOut(context),
+                      onTap: () async {
+                        await FirebaseService().signOut();
+                        // No need to navigate, DecisionScreen will handle it
+                      },
                     ),
                   ] else ...[
-                    ListTile(
-                      leading: const Icon(Icons.login, color: Colors.white),
-                      title: const Text(
-                        'Iniciar sesión',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontFamily: 'Medieval',
-                          fontSize: 20,
+                      ListTile(
+                        leading: const Icon(Icons.login, color: Colors.white),
+                        title: const Text(
+                          'Iniciar sesión',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontFamily: 'Medieval',
+                            fontSize: 20,
+                          ),
                         ),
+                        onTap: () {
+                          // Simply close the drawer. DecisionScreen will handle the navigation to LoginScreen.
+                          Navigator.of(context).pop();
+                        },
                       ),
-                      onTap: () => _signInWithGoogle(context),
-                    ),
                   ],
                   ListTile(
                     leading: const Icon(Icons.settings, color: Colors.white),

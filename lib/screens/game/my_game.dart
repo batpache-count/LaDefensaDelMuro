@@ -1,5 +1,5 @@
 import 'dart:math';
-import 'dart:ui' as ui; // 💡 Importación de dart:ui con alias 'ui'
+import 'dart:ui' as ui;
 import 'package:flame/components.dart';
 import 'package:flame/collisions.dart';
 import 'package:flame/events.dart';
@@ -35,31 +35,19 @@ class GoblinComponent extends SpriteAnimationComponent with CollisionCallbacks {
   Future<void> onLoad() async {
     await super.onLoad();
 
-    // 1. Cargar la imagen del spritesheet (ui.Image)
     final image = game.goblinImage;
-
-    // Dimensiones de un solo frame (330x290)
     final frameSize = Vector2(330, 290);
 
-    // 2. Definir y cargar los Sprites individuales (los recortes)
     final List<Sprite> sprites = [
-      // Frame 1: Posición (0, 0)
       Sprite(image, srcPosition: Vector2(0, 0), srcSize: frameSize),
-      // Frame 2: Posición (0, 290) - Recorte vertical
-      Sprite(
-        image,
-        srcPosition: Vector2(0, 290), // Mueve 290 píxeles hacia abajo
-        srcSize: frameSize,
-      ),
+      Sprite(image, srcPosition: Vector2(0, 290), srcSize: frameSize),
     ];
 
-    // 3. Crear la animación
     animation = SpriteAnimation.spriteList(
       sprites,
-      stepTime: 0.15, // Velocidad de la animación
+      stepTime: 0.15,
     );
 
-    // Colisiones
     add(RectangleHitbox(size: size * 0.8));
   }
 
@@ -101,30 +89,21 @@ class MiniBossComponent extends GoblinComponent {
 
   @override
   Future<void> onLoad() async {
-    // 1. Cargar la nueva imagen del miniboss (ui.Image)
     final image = game.miniBossImage;
-
-    // 2. Definir dimensiones de un solo frame (610x810)
     final frameSize = Vector2(610, 810);
 
-    // 3. Definir y cargar los 4 Sprites del spritesheet vertical
     final List<Sprite> sprites = [
-      Sprite(image, srcPosition: Vector2(0, 0), srcSize: frameSize),
-      Sprite(image, srcPosition: Vector2(0, 810), srcSize: frameSize),
-      Sprite(image, srcPosition: Vector2(0, 1620), srcSize: frameSize),
-      Sprite(image, srcPosition: Vector2(0, 2430), srcSize: frameSize),
+      for (int i = 0; i < 4; i++)
+        Sprite(image, srcPosition: Vector2(0.0, 810.0 * i), srcSize: frameSize),
+
     ];
 
-    // 4. Crear la nueva animación
     animation = SpriteAnimation.spriteList(
       sprites,
-      stepTime: 0.15, // Velocidad de la animación
+      stepTime: 0.15,
     );
 
-    // 5. Ajustar tamaño
     size = Vector2(160, 160);
-
-    // 6. Añadir el hitbox explícitamente
     add(RectangleHitbox(size: size * 0.8));
   }
 
@@ -173,7 +152,6 @@ class GoblinSpawner extends TimerComponent with HasGameRef<MyGame> {
   };
 
   final Random _rnd = Random();
-
   late final List<double> ropePositionsX;
 
   GoblinSpawner({
@@ -197,7 +175,6 @@ class GoblinSpawner extends TimerComponent with HasGameRef<MyGame> {
   void registerKill() {
     _killsInStage++;
     onGoblinKilled();
-
     final totalKills = gameRef._goblinsKilledCount;
 
     if (gameRef.children.whereType<MiniBossComponent>().isEmpty) {
@@ -275,7 +252,7 @@ class GoblinSpawner extends TimerComponent with HasGameRef<MyGame> {
       game: gameRef,
       onBreach: onBreach,
       onKilled: () => registerKill(),
-      position: Vector2(startX - 2, gameSize.y),
+      position: Vector2(startX - 8, gameSize.y),
       speed: speed,
     );
     gameRef.add(newGoblin);
@@ -283,20 +260,14 @@ class GoblinSpawner extends TimerComponent with HasGameRef<MyGame> {
 }
 
 // =========================
-// DEFENDER COMPONENT (Actualizado)
+// DEFENDER COMPONENT
 // =========================
 class DefenderComponent extends SpriteComponent with HasGameRef<MyGame> {
-  // Ahora el componente en sí es el sprite
   late RectangleComponent _cooldownBar;
-
   final ui.Image leftImage;
   final ui.Image rightImage;
-
-  // Tamaño deseado para el defensor
   static final Vector2 defenderSize = Vector2(60, 90);
-
-  // Posición del defensor (centro)
-  static const double defenderYPositionRatio = 0.37; // 70% desde arriba
+  static const double defenderYPositionRatio = 0.37;
 
   DefenderComponent({
     required MyGame game,
@@ -314,26 +285,18 @@ class DefenderComponent extends SpriteComponent with HasGameRef<MyGame> {
   @override
   Future<void> onLoad() async {
     await super.onLoad();
-
-    // Sprite por defecto (Mirando a la derecha)
     sprite = Sprite(rightImage);
 
-    // Posición del componente de cooldown bar (relativa al centro del defensor)
     _cooldownBar = RectangleComponent(
-      position: Vector2(
-        -defenderSize.x / 2 + 30,
-        -defenderSize.y / 2 + 45,
-      ), // Arriba del sprite
-      size: Vector2(defenderSize.x, 4), // Ancho total del sprite, 4px de alto
+      position: Vector2(-defenderSize.x / 2 + 0, -defenderSize.y / 2 + 45),
+      size: Vector2(defenderSize.x, 4),
       paint: Paint()..color = Colors.red.shade900,
-      priority: 1, // Asegura que esté por encima del sprite
+      priority: 1,
     );
     add(_cooldownBar);
-
     game.defenderCooldownNotifier.addListener(_updateCooldownBar);
   }
 
-  // Método para cambiar el sprite y la dirección
   void setDirection(bool isLeft) {
     sprite = Sprite(isLeft ? leftImage : rightImage);
   }
@@ -341,16 +304,11 @@ class DefenderComponent extends SpriteComponent with HasGameRef<MyGame> {
   void _updateCooldownBar() {
     final currentStage =
         game.children.whereType<GoblinSpawner>().firstOrNull?._currentStage ??
-        DifficultyStage.easy;
+            DifficultyStage.easy;
     final maxCd = GoblinSpawner.difficultySettings[currentStage]!['defender']!;
-
-    // Si _lastShotTime es 0, progress es 1 (barra llena). Si es maxCd, progress es 0 (barra vacía)
     final progress = 1 - (game._lastShotTime / maxCd).clamp(0.0, 1.0);
 
-    // La barra de cooldown tiene el ancho total del defensor (defenderSize.x)
     _cooldownBar.size.x = defenderSize.x * progress;
-
-    // Si está cargada, la ponemos verde. Si está descargándose, roja.
     _cooldownBar.paint.color = progress >= 0.99
         ? Colors.green
         : Colors.red.shade900;
@@ -370,26 +328,19 @@ class MyGame extends FlameGame with TapCallbacks, HasCollisionDetection {
   final int level;
   MyGame({this.level = 1});
 
-  // USAR ui.Image para referirse al tipo correcto de Flame/dart:ui
+  List<RectangleComponent> get cauldrons => _cauldrons;
+
   late final ui.Image goblinImage;
   late final ui.Image miniBossImage;
-
-  // 💡 Nuevas imágenes del defensor
   late final ui.Image defenderLeftImage;
   late final ui.Image defenderRightImage;
+  late final ui.Image boilingOilImage;
 
-  // Referencia al defensor para cambiar la dirección
   DefenderComponent? _defender;
-
-  // HUD
   final ValueNotifier<int> scoreNotifier = ValueNotifier<int>(0);
   final ValueNotifier<int> breachesNotifier = ValueNotifier<int>(0);
-  final ValueNotifier<double> defenderCooldownNotifier = ValueNotifier<double>(
-    0.0,
-  );
-  final ValueNotifier<double> abilityCooldownNotifier = ValueNotifier<double>(
-    0.0,
-  );
+  final ValueNotifier<double> defenderCooldownNotifier = ValueNotifier<double>(0.0);
+  final ValueNotifier<double> abilityCooldownNotifier = ValueNotifier<double>(0.0);
 
   static const int maxBreaches = 5;
 
@@ -400,23 +351,18 @@ class MyGame extends FlameGame with TapCallbacks, HasCollisionDetection {
   bool _miniBossKilled = false;
 
   GoblinSpawner? _spawner;
-
-  // ----- CAULDRONS + ROPES -----
   final List<RectangleComponent> _cauldrons = [];
 
   @override
   Future<void> onLoad() async {
     await super.onLoad();
 
-    // Pre-carga de imágenes de componentes
+    boilingOilImage = await images.load('cauldron_spritesheet.png');
     goblinImage = await images.load('GoblinBack.png');
     miniBossImage = await images.load('MiniBoss_Lvl1.png');
-    defenderLeftImage = await images.load('Defensor-Izq.png'); // 💡 Nueva carga
-    defenderRightImage = await images.load(
-      'Defensor-Der.png',
-    ); // 💡 Nueva carga
+    defenderLeftImage = await images.load('Defensor-Izq.png');
+    defenderRightImage = await images.load('Defensor-Der.png');
 
-    // ===== FONDO (más atrás) =====
     add(
       SpriteComponent()
         ..sprite = await loadSprite('Fondo_Nvl1.jpg')
@@ -425,22 +371,14 @@ class MyGame extends FlameGame with TapCallbacks, HasCollisionDetection {
         ..priority = -10,
     );
 
-    // ===== MURO ANIMADO =====
     final muroImage = await images.load('Muro_Nvl1.png');
-
     final frameSize = Vector2(1050, 1600);
-
-    final List<Sprite> muroSprites = [
+    final muroSprites = [
       Sprite(muroImage, srcPosition: Vector2(0, 0), srcSize: frameSize),
       Sprite(muroImage, srcPosition: Vector2(0, 1600), srcSize: frameSize),
       Sprite(muroImage, srcPosition: Vector2(0, 3200), srcSize: frameSize),
     ];
-
-    final muroAnimation = SpriteAnimation.spriteList(
-      muroSprites,
-      stepTime: 0.25,
-    );
-
+    final muroAnimation = SpriteAnimation.spriteList(muroSprites, stepTime: 0.25);
     add(
       SpriteAnimationComponent()
         ..animation = muroAnimation
@@ -450,7 +388,6 @@ class MyGame extends FlameGame with TapCallbacks, HasCollisionDetection {
         ..priority = -5,
     );
 
-    // 💡 Añadir el nuevo DefenderComponent
     _defender = DefenderComponent(
       game: this,
       leftImage: defenderLeftImage,
@@ -458,22 +395,21 @@ class MyGame extends FlameGame with TapCallbacks, HasCollisionDetection {
     );
     add(_defender!);
 
-    // --- Calderos + cuerdas ---
     final caldY = size.y * 0.42;
     final spacing = size.x / 5;
     for (int i = 1; i <= 4; i++) {
       final caldX = spacing * i - 30 / 2;
       final cald = RectangleComponent(
-        position: Vector2(caldX, caldY),
-        size: Vector2(30, 30),
-        paint: Paint()..color = Colors.orange,
+        position: Vector2(caldX - 21, caldY),
+        size: Vector2(70, 600),
+        paint: Paint()..color = Colors.transparent,
       );
       _cauldrons.add(cald);
       add(cald);
 
       final rope = RectangleComponent(
-        position: Vector2(caldX + 12, caldY + 30),
-        size: Vector2(6, size.y * 0.55),
+        position: Vector2(caldX + 10, caldY + 12),
+        size: Vector2(6, size.y * 0.75),
         paint: Paint()..color = Colors.brown,
       );
       add(rope);
@@ -494,16 +430,13 @@ class MyGame extends FlameGame with TapCallbacks, HasCollisionDetection {
   @override
   void update(double dt) {
     super.update(dt);
+
     if (_abilityCooldownTimer > 0) {
-      _abilityCooldownTimer = (_abilityCooldownTimer - dt).clamp(
-        0,
-        double.infinity,
-      );
+      _abilityCooldownTimer = (_abilityCooldownTimer - dt).clamp(0, double.infinity);
       abilityCooldownNotifier.value = _abilityCooldownTimer;
     }
 
     if (_isGameOver) return;
-
     if (_lastShotTime > 0) {
       _lastShotTime -= dt;
       if (_lastShotTime < 0) _lastShotTime = 0;
@@ -519,11 +452,8 @@ class MyGame extends FlameGame with TapCallbacks, HasCollisionDetection {
     final tapPosition = event.canvasPosition;
     final tapped = componentsAtPoint(tapPosition);
 
-    // 💡 Lógica para cambiar la dirección del defensor
     final isLeftHalf = tapPosition.x < size.x / 2;
     _defender?.setDirection(isLeftHalf);
-    // Nota: Si quieres que el defensor solo mire a la izquierda si tocas la cuerda 1 o 2,
-    // la lógica sería más compleja, pero para "mitad de pantalla" esta es la forma correcta.
 
     for (final c in tapped.whereType<GoblinComponent>()) {
       _handleAttack(c);
@@ -567,28 +497,6 @@ class MyGame extends FlameGame with TapCallbacks, HasCollisionDetection {
     overlays.add('Victory');
   }
 
-  void pauseSpawning() {
-    _spawner?.timer.stop();
-  }
-
-  void resumeSpawning() {
-    _spawner?.timer.start();
-  }
-
-  void onGoblinKilledByOil() {
-    _goblinsKilledCount++;
-    scoreNotifier.value += 10;
-    if (_goblinsKilledCount >= GoblinSpawner.goblinsBeforeMiniBoss &&
-        _miniBossKilled) {
-      endGame(true);
-    }
-  }
-
-  void onMiniBossKilledByOil() {
-    _miniBossKilled = true;
-    onGoblinKilledByOil();
-  }
-
   void endGame(bool victory) {
     if (_isGameOver) return;
     _isGameOver = true;
@@ -603,7 +511,6 @@ class MyGame extends FlameGame with TapCallbacks, HasCollisionDetection {
       child: SafeArea(
         child: Stack(
           children: [
-            // Contenido principal del HUD (Puntaje, Breaches, Habilidad)
             Positioned(
               top: 0,
               left: 0,
@@ -614,7 +521,6 @@ class MyGame extends FlameGame with TapCallbacks, HasCollisionDetection {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Columna Izquierda: SCORE y BREACHES
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -649,8 +555,6 @@ class MyGame extends FlameGame with TapCallbacks, HasCollisionDetection {
                         ),
                       ],
                     ),
-
-                    // Habilidad (Aceite Hirviendo) y Cooldown
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.end,
                       children: [
@@ -695,8 +599,6 @@ class MyGame extends FlameGame with TapCallbacks, HasCollisionDetection {
                 ),
               ),
             ),
-
-            // 💡 Botón de Habilidad (POSICIONADO ABAJO A LA DERECHA)
             ValueListenableBuilder<double>(
               valueListenable: game.abilityCooldownNotifier,
               builder: (_, cooldown, __) {

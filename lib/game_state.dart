@@ -15,6 +15,7 @@ class GameState extends ChangeNotifier {
   bool get isLoggedIn => _user != null;
 
   void setUser(User? user) {
+    print('GameState.setUser called with user: ${user?.email}, isLoggedIn: ${user != null}');
     _user = user;
     notifyListeners();
   }
